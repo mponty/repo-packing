@@ -27,9 +27,17 @@ class Repo:
         self._connections_graph = None
 
     def order_files(self):
-        similarity_matrix = self.parse()
-        order = self.solver.solve(similarity_matrix)
-        return [self.repo_files[idx] for idx in order]
+        if len(self.repo_files) < 2:
+            return self.repo_files
+        try:
+            similarity_matrix = self.parse()
+            order = self.solver.solve(similarity_matrix)
+            ordered_files = [self.repo_files[idx] for idx in order]
+        except Exception as err:
+            # TODO : logger
+            # print(type(err), err)
+            ordered_files = self.repo_files
+        return ordered_files
 
     @staticmethod
     def presorting(files):
@@ -41,9 +49,10 @@ class Repo:
 
         return self.prepare_similarity_matrix(self._keywords, self._connections_graph)
 
-    def prepare_similarity_matrix(self, documents, connections_graph):
-        self._similarity_matrix = compute_bm25_similarity(documents)
-        similarity_matrix = self.boost_connections(self._similarity_matrix, connections_graph)
+    def prepare_similarity_matrix(self, documents, connections_graph=None):
+        self._similarity_matrix = similarity_matrix = compute_bm25_similarity(documents)
+        if connections_graph is not None:
+            similarity_matrix = self.boost_connections(similarity_matrix, connections_graph)
         # Set diagonal to zero
         similarity_matrix = similarity_matrix - np.diag(np.diag(similarity_matrix))
         return similarity_matrix

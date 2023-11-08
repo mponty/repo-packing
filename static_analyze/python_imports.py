@@ -53,12 +53,17 @@ class PythonImportsAnalyzer:
                 for alias in node.names:
                     self.imports[(module, level)].append(alias.name)
 
-        tree = ast.parse(source_code)
-        extractor = ImportExtractor()
-        extractor.visit(tree)
+        try:
+            tree = ast.parse(source_code)
+            extractor = ImportExtractor()
+            extractor.visit(tree)
+            imports = extractor.imports
+        except Exception as err:
+            # TODO : logger
+            # print(type(err), err)
+            imports = []
 
-        # Return the dictionary containing the imports
-        return extractor.imports
+        return imports
 
     def resolve_module_path(self, module: str, level: int, current_path: str):
         current_dir = Path(current_path).parent

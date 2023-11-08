@@ -105,7 +105,9 @@ class BM25Transformer(BaseEstimator, TransformerMixin):
 
             # collect terms with negative idf to set them a special epsilon value.
             # idf can be negative if word is contained in more than half of documents
-            bm25idf[bm25idf < 0] = self.epsilon * bm25idf[bm25idf > 0].mean()
+            avg_idf = np.average(bm25idf[bm25idf > 0])
+            if not np.isnan(avg_idf):
+                bm25idf[bm25idf < 0] = self.epsilon * avg_idf
 
             self._idf_diag = sp.spdiags(bm25idf,
                                         diags=0, m=n_features, n=n_features)
