@@ -92,7 +92,7 @@ class TSPSolver:
 
     def merge_chains(self, chain1, chain2):
         return DirectedChain(chain1.start, chain2.end,
-                             nodes=chain1.nodes + chain2.nodes[1:])
+                             nodes=chain1.nodes + chain2.nodes)
 
     def connect_all_chains(self):
         pq = self.initialize_priority_queue()
