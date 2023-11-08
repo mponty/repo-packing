@@ -27,7 +27,7 @@ class Repo:
         self._connections_graph = None
 
     def order_files(self):
-        if len(self.repo_files) < 2:
+        if len(self.repo_files) < 2 or len(self.repo_files) > 2_000:
             return self.repo_files
         try:
             similarity_matrix = self.parse()
