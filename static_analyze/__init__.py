@@ -28,9 +28,9 @@ class StaticAnalyzer:
         return connections_graph
 
     def group_by_language(self, files: List[Dict]):
-        sorted_files = sorted(files, key=lambda f: f['lang'])
+        sorted_files = sorted(files, key=lambda f: f['language'])
 
-        for language, group in groupby(sorted_files, key=lambda f: f['lang']):
+        for language, group in groupby(sorted_files, key=lambda f: f['language']):
             yield language, list(group)
 
     def make_graph(self, connected_files, files) -> csr_matrix:

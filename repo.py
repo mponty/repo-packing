@@ -36,7 +36,7 @@ class Repo:
         return list(sorted(files, key=lambda f: f['path']))
 
     def parse(self) -> np.ndarray:
-        self._keywords = [self.content_analyzer.analyze(file['content'], file['lang']) for file in self.repo_files]
+        self._keywords = [self.content_analyzer.analyze(file['content'], file['language']) for file in self.repo_files]
         self._connections_graph = self.static_analyzer.analyze_connections(self.repo_files)
 
         return self.prepare_similarity_matrix(self._keywords, self._connections_graph)
