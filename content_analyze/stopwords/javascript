@@ -72,8 +72,6 @@ require
 the
 exports
 module
-name
-data
 type
 use
 nan
@@ -85,7 +83,6 @@ log
 value
 React
 and
-gh_stars
 get
 error
 div
@@ -202,13 +199,11 @@ array
 container
 types
 success
-request
 page
 params
 element
 www
 expect
-query
 span
 right
 info

@@ -107,8 +107,6 @@ __import__
 the
 self
 nan
-name
-data
 __init__
 append
 __name__
@@ -165,7 +163,6 @@ result
 used
 have
 error
-user
 write
 only
 function
@@ -207,7 +204,6 @@ See
 message
 when
 into
-request
 keys
 exists
 method

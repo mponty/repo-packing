@@ -216,7 +216,6 @@ main
 from
 The
 end
-data
 NAME
 License
 This
@@ -225,7 +224,6 @@ value
 under
 software
 are
-name
 ANY
 See
 size_t

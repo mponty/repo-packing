@@ -114,7 +114,6 @@ apache
 use
 License
 Copyright
-reponame
 under
 copy
 software
@@ -122,7 +121,6 @@ www
 you
 ANY
 add
-name
 See
 may
 WITHOUT
@@ -160,7 +158,6 @@ Unless
 agreed
 value
 NAME
-model
 core
 from
 that
@@ -168,7 +165,6 @@ size
 javax
 out
 equals
-data
 length
 Integer
 api
@@ -244,7 +240,6 @@ getLogger
 exception
 string
 run
-request
 annotations
 beans
 stream
@@ -261,7 +256,6 @@ next
 EMAIL
 getInstance
 Assert
-base
 only
 src
 rights

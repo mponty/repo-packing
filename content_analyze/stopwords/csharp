@@ -27,7 +27,6 @@ object
 value
 readonly
 List
-base
 foreach
 with
 protected
@@ -201,23 +200,17 @@ the
 nan
 summary
 Text
-name
 Threading
-reponame
 Tasks
 and
 Add
 Microsoft
-gh_stars
-Name
 The
 not
 ToString
 param
 file
-Models
 Copyright
-Data
 that
 Count
 Value
@@ -234,7 +227,6 @@ All
 Type
 use
 ﻿namespace
-data
 result
 See
 Windows
@@ -251,7 +243,6 @@ will
 WriteLine
 used
 cref
-ComponentModel
 Runtime
 com
 rights
@@ -264,7 +255,6 @@ instance
 Empty
 Console
 license
-Model
 Update
 Diagnostics
 text
@@ -339,7 +329,6 @@ ToList
 Serialization
 current
 org
-model
 position
 Clear
 Path
@@ -352,7 +341,6 @@ licenses
 Instance
 KIND
 first
-Controls
 time
 number
 copyright
@@ -371,7 +359,6 @@ must
 either
 Write
 Properties
-request
 Input
 Content
 error
