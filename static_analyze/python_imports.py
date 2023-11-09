@@ -61,7 +61,7 @@ class PythonImportsAnalyzer:
         except Exception as err:
             # TODO : logger
             # print(type(err), err)
-            imports = []
+            imports = dict()
 
         return imports
 

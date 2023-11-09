@@ -29,10 +29,10 @@ class RepoPacker:
 
         for file in self.repo_files:
             # prefill matching score
-            file['matching_score'] = None
+            file['matching_score'] = 0.
 
-    def order_files(self):
-        if len(self.repo_files) < 2 or len(self.repo_files) > 2_000:
+    def order_files(self, max_repo_size=2_000):
+        if len(self.repo_files) < 2 or len(self.repo_files) > max_repo_size:
             return self.repo_files
 
         try:
