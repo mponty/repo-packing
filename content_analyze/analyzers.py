@@ -17,7 +17,7 @@ class BaseAnalyzer:
         :param content: code or text to analyze
         :return: space separated keyword terms
         """
-        keywords = re.findall(self.identifier_pattern, content)
+        keywords = self.parse_keywords(content)
         keywords = self.plural_to_singular_stem(keywords)
         keywords = self.word_filter(keywords)
         camel_split = self.camel_case_split(keywords)
@@ -29,6 +29,10 @@ class BaseAnalyzer:
         keywords = keywords + [word.lower() for word in keywords]
 
         return ' '.join(keywords)
+
+    def parse_keywords(self, content):
+        keywords = re.findall(self.identifier_pattern, content)
+        return keywords
 
     def word_filter(self, keywords):
         return [word for word in keywords if (len(word) > self.min_length) and (word not in self.stopwords)]
@@ -84,15 +88,82 @@ class BaseAnalyzer:
 
 
 class DefaultAnalyzer(BaseAnalyzer):
-    stopwords_filename = 'default'
+    stopwords_filename = ('default',)
 
     def __init__(self):
-        current_dir = Path(__file__).parent
-        filepath = current_dir.joinpath('stopwords', self.stopwords_filename)
-        with open(filepath, 'r') as f:
-            stopwords = [line.strip('\n') for line in f.readlines()]
+        stopwords = []
+
+        if isinstance(self.stopwords_filename, str):
+            stopwords_filenames = (self.stopwords_filename,)
+        else:
+            stopwords_filenames = self.stopwords_filename
+
+        for filename in stopwords_filenames:
+            stopwords += self.load_stopwords_file(filename)
+
         super().__init__(stopwords=stopwords)
+
+    def load_stopwords_file(self, stopwords_filename: str):
+        current_dir = Path(__file__).parent
+        filepath = current_dir.joinpath('stopwords', stopwords_filename)
+        with open(filepath, 'r') as f:
+            stopwords = [line.strip() for line in f.readlines() if len(line.strip()) > 0]
+        return stopwords
 
 
 class PythonAnalyzer(DefaultAnalyzer):
-    stopwords_filename = 'Python'
+    stopwords_filename = 'python'
+
+
+class JupyterAnalyzer(DefaultAnalyzer):
+    stopwords_filename = ('jupyter', 'python', 'text')
+
+
+class JavaAnalyzer(DefaultAnalyzer):
+    stopwords_filename = 'java'
+
+
+class JavaScriptAnalyzer(DefaultAnalyzer):
+    stopwords_filename = 'javascript'
+
+
+class CAnalyzer(DefaultAnalyzer):
+    stopwords_filename = 'c'
+
+
+class CSharpAnalyzer(DefaultAnalyzer):
+    stopwords_filename = 'csharp'
+
+
+class CppAnalyzer(DefaultAnalyzer):
+    stopwords_filename = 'cpp'
+
+
+class PHPAnalyzer(DefaultAnalyzer):
+    stopwords_filename = 'php'
+
+
+class XMLAnalyzer(DefaultAnalyzer):
+    stopwords_filename = 'xml'
+
+    def parse_keywords(self, content):
+        keywords = super().parse_keywords(content)
+        # Lowering term frequency
+        keywords = list(set(keywords))
+        return keywords
+
+
+class HTMLAnalyzer(XMLAnalyzer):
+    stopwords_filename = ('html', 'text')
+
+
+class JSONAnalyzer(XMLAnalyzer):
+    stopwords_filename = ('default', 'text')
+
+
+class YAMLAnalyzer(XMLAnalyzer):
+    stopwords_filename = 'default'
+
+
+class TextAnalyzer(XMLAnalyzer):
+    stopwords_filename = 'text'
