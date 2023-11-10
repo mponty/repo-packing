@@ -399,6 +399,28 @@ class BM25Vectorizer(CountVectorizer):
 
 
 def compute_bm25_similarity(documents: List[Text]) -> np.ndarray:
+    """
+        Computes the BM25 similarity matrix for a given list of documents.
+
+        This function calculates the similarity between documents using the BM25 algorithm,
+        which is a popular information retrieval function used to rank documents based on
+        their relevance to a given search query. The function first converts the documents
+        into a frequency matrix, then applies the BM25 transformation, and finally computes
+        the similarity scores between each pair of documents.
+
+        Parameters:
+        documents (List[Text]): A list of documents, where each document is a string.
+
+        Returns:
+        np.ndarray: A square matrix of shape (n_samples, n_samples) where n_samples is
+                    the number of documents. Each element [i, j] in the matrix represents
+                    the BM25 similarity score between document i and document j.
+    Note:
+    - BM25 is a probabilistic approach and is considered more advanced than traditional
+      TF-IDF (Term Frequency-Inverse Document Frequency) as it introduces additional
+      factors like term saturation and document length normalization.
+    - This function assumes that the input documents are preprocessed and tokenized as required.
+    """
     count_vect = CountVectorizer(min_df=2, lowercase=False)
     bm25 = BM25Transformer(use_bm25idf=True, bm25_tf=True)
 
