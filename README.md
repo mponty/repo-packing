@@ -1,35 +1,52 @@
-# Repo Packer
+# Repo Rearranger
 
+
+Smarter ordering for optimal Example Packing in the training of autoregressive Language Models
+
+---
 ## What Does It Do?
-RepoPacker optimizes the order of files in training data to provide the best training signal for a Language Model. It groups semantically connected files—such as definitions, implementations, and usages—into closely-clustered sequences and arranges them appropriately. For instance, in Python repositories,
-files like `main.py`, `module/__init__.py`, and `module/somestuff.py` are reordered to place `module/somestuff.py` followed by `main.py` if `main.py` references `module/somestuff.py` through
-an import statement.
 
-Ordering the files such that the definition file precedes the referencing file is crucial. This sequence closely mirrors the scenario during code completion, potentially providing significant benefits to the training process.
+Repo Rearranger is designed to enhance the training of autoregressive
+Language Models by optimizing the organization of files in training datasets.
+It effectively groups files based on semantic relationships, arranging 
+them in sequences that mirror real-world, repository-level code completion
+scenarios.
+
+It groups semantically connected files—such
+as definitions, implementations, and usages—into closely clustered sequences and arranges them appropriately. For example, in a Python repository with files like `main.py`, `module/__init__.py`, and `module/somestuff.py`, it will reorder 
+to place `module/somestuff.py` followed by `main.py` if `main.py` references
+`module/somestuff.py` through an import statement.
+
+Such file ordering is important for adapting Language Models to
+_**typical code-completion scenario**_, which often involve using 
+functions, objects, and classes defined _**earlier**_ in other files of the repository.
 
 ### Additional Features:
-* Language-agnostic and universally applicable
-* Capable of aligning documentation and configuration files with the corresponding source code
-* Efficiently reorders large repositories containing thousands of files
+* **Language-agnostic** and universally applicable.
+* Aligns documentation and configuration files with their relevant source code.
+* Efficiently reorders large repositories with thousands of files.
+* Implements **fuzzy term matching** to recognize semantically similar keywords across different naming conventions, 
+ such as **camelCase** or **snake_case**, treating terms like `get_property_name` and `PropertyName` as related, thereby enhancing contextual links within the data.
 
-#### Check out `Usage example.ipynb` for a practical demonstration!
+### Explore [`Usage example.ipynb`](https://github.com/mponty/repo-packing/blob/main/Usage%20example.ipynb) for a practical demonstration!
 
 ## The Algorithm
 
-The algorithm treats files in a repository as nodes and organizes the process to find an optimal Hamiltonian path through a complete graph. The graph is initially populated with edge weights derived from the BM25 score between the contents of different files.
+The algorithm treats files in a repository as nodes in a graph,
+aiming to find an optimal Hamiltonian path through a complete graph with edge weights derived from `BM25` scores between file contents.
 
-The optimization algorithm, implemented in the `TSPSolver` class, aims to solve a variation of the Traveling Salesperson Problem (TSP) by finding a Hamiltonian path that maximizes the total weight of the edges, often referred to as the "Maximum Weight Hamiltonian Path Problem" (MWHPP). The algorithm proceeds as follows:
+Developed within the `TSPSolver` class, the algorithm addresses a variation of the Traveling Salesperson Problem (TSP) by creating a Hamiltonian path that maximizes the total weight of the edges, known as the Maximum Weight Hamiltonian Path Problem. The process unfolds as follows:
 
 1. **Initial Clustering:**
-   - Applies the Hungarian algorithm to condense the complete graph into a sparse graph with simple chains and cycles.
+   - Utilizes the Jonker-Volgenant algorithm to reduce the complete graph into a sparser structure of simple chains and cycles, resulting in one large simple cycle or several connected components, each being either a chain or a simple cycle.
 
 2. **Cycle Handling:**
-   - Identifies and breaks cycles within the graph by removing the least-weight edges.
+   - Identifies and eliminates cycles by removing the edges with the least weight, thereby commencing the assembly with multiple simple chains.
 
 3. **Chain Merging:**
-   - Iteratively merges the best pairs of chains, prioritizing those with the highest connecting edge weight, to form a single continuous chain.
+   - Repeatedly merges the most advantageous chain pairs, emphasizing those with the highest connecting edge weights, to form a unified chain.
 
 4. **Result:**
-   - Outputs the final chain representing the maximum weight Hamiltonian path that visits each node exactly once.
+   - Produces the final chain, representing a Hamiltonian path with maximum weight, covering each node precisely once.
 
-This algorithm offers a heuristic solution to the NP-hard problem of finding a maximum weight Hamiltonian path by adopting a greedy approach to merge chains based on edge weights, ensuring an order that leads to an optimal solution.
+This algorithm provides a heuristic approach to solve the NP-hard problem of finding a maximum weight Hamiltonian path, using a greedy method for merging chains based on edge weights to achieve an optimal solution.
