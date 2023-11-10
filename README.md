@@ -3,7 +3,7 @@
 
 Smarter ordering for optimal Example Packing in the training of autoregressive Language Models
 
----
+
 ## What Does It Do?
 
 Repo Rearranger is designed to enhance the training of autoregressive
