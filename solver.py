@@ -8,13 +8,16 @@ import scipy.sparse
 
 DirectedChain = namedtuple('DirectedChain', ['start', 'end', 'nodes'])
 
+
 class TSPSolver:
     def solve(self, similarity_matrix):
         """
-        Solves the optimization problem to find the maximum weight Hamiltonian path.
+        Solves the problem of organizing files in a repository to enhance the training of autoregressive Language Models
+        This method initializes the graph, identifies connected components, converts them to directed chains,
+        and then connects these chains to form a Hamiltonian path.
 
         Args:
-            similarity_matrix (numpy.ndarray): A square matrix representing the similarities between nodes.
+            similarity_matrix (numpy.ndarray): A square matrix representing the similarities (weights) between nodes.
 
         Returns:
             List: The nodes in the final chain, representing the Hamiltonian path.
@@ -31,7 +34,9 @@ class TSPSolver:
 
     def init_graph(self, similarity_matrix):
         """
-        Initializes the graph based on the provided similarity matrix.
+        Initializes the graph from a similarity matrix by creating a cost matrix and
+        applying the Jonker-Volgenant algorithm to find the optimal assignment.
+        The resulting graph is sparse with simple chains and cycles.
 
         Args:
             similarity_matrix (numpy.ndarray): A square matrix representing the similarities between nodes.
@@ -52,7 +57,8 @@ class TSPSolver:
     @staticmethod
     def _is_cycle(component):
         """
-        Checks if a given graph component is a cycle.
+        Determines whether a component of the graph is a cycle.
+        A cycle is defined as a component where every node has two edges (degree = 2).
 
         Args:
             component (networkx.Graph): A subgraph or component of the main graph.
@@ -66,7 +72,8 @@ class TSPSolver:
     @staticmethod
     def _break_cycle(component):
         """
-        Breaks a cycle in a graph component by removing an edge.
+        Breaks a cycle within a component by removing an edge with the least weight.
+        This is a crucial step to transform cycles into chains, simplifying the graph structure.
 
         Args:
             component (networkx.Graph): A subgraph or component of the main graph that is a cycle.
@@ -83,7 +90,8 @@ class TSPSolver:
 
     def component_to_directed_chain(self, component):
         """
-        Converts a graph component to a directed chain.
+        Converts a graph component into a directed chain. This involves identifying start and end nodes,
+        breaking cycles if necessary, and determining the traversal order based on the weights.
 
         Args:
             component (networkx.Graph): A subgraph or component of the main graph.
@@ -110,7 +118,9 @@ class TSPSolver:
 
     def _connection_cost(self, chain1, chain2):
         """
-        Calculates the connection cost between two chains.
+        Calculates the connection cost between two chains, defined as the negative weight of the edge
+        connecting the end of the first chain to the start of the second. This negative weight is used
+        because the algorithm seeks to maximize the total weight in the path.
 
         Args:
             chain1 (DirectedChain): The first chain.
@@ -123,7 +133,8 @@ class TSPSolver:
 
     def initialize_priority_queue(self):
         """
-        Initializes a priority queue with all possible chain connections.
+        Initializes a priority queue with all possible connections between chains.
+        The queue stores tuples of cost and chain pairs, prioritizing connections with the highest weights.
 
         Returns:
             list: A priority queue with tuples containing the cost and chain pairs.
@@ -136,7 +147,8 @@ class TSPSolver:
 
     def push_new_pair(self, pq, chain1, chain2):
         """
-        Pushes a new pair of chains onto the priority queue.
+        Pushes a new pair of chains onto the priority queue, evaluating both directions of connection
+        and their respective costs.
 
         Args:
             pq (list): The priority queue.
@@ -155,6 +167,7 @@ class TSPSolver:
     def update_priority_queue(self, pq, new_chain):
         """
         Updates the priority queue with new pairings involving the newly merged chain.
+        This is essential to reflect the new potential connections in the graph.
 
         Args:
             pq (list): The priority queue.
@@ -170,7 +183,8 @@ class TSPSolver:
 
     def merge_chains(self, chain1, chain2):
         """
-        Merges two chains into one.
+        Merges two chains into one, creating a new chain that extends from the start of the first chain
+        to the end of the second. This is a key step in building the final Hamiltonian path.
 
         Args:
             chain1 (DirectedChain): The first chain.
@@ -183,7 +197,8 @@ class TSPSolver:
 
     def connect_all_chains(self):
         """
-        Connects all chains to form a single Hamiltonian path.
+        Connects all chains in the graph to form a single, continuous Hamiltonian path.
+        This method iteratively merges chains, using a priority queue to determine the most advantageous mergers.
 
         Returns:
             DirectedChain: The final merged chain representing the Hamiltonian path.
