@@ -2,6 +2,7 @@ import re
 from typing import Text, List, Tuple, Iterator
 from pathlib import Path
 import itertools
+import functools
 
 
 class BaseAnalyzer:
@@ -31,7 +32,7 @@ class BaseAnalyzer:
         return ' '.join(keywords)
 
     def parse_keywords(self, content):
-        keywords = re.findall(self.identifier_pattern, content)
+        keywords = self.identifier_pattern.findall(content)
         return keywords
 
     def word_filter(self, keywords):
@@ -46,9 +47,15 @@ class BaseAnalyzer:
 
     def _camel_case_splitter(self, keywords: List[Text]) -> Iterator[Tuple[Text]]:
         for word in keywords:
-            pieces = re.sub(self.camel_case_pattern, r' \1', word).split()
-            if len(pieces) > 1:
-                yield pieces
+            if not word.islower():
+                pieces = self._camel_case_word_split(word)
+                if len(pieces) > 1:
+                    yield pieces
+
+    @staticmethod
+    @functools.cache
+    def _camel_case_word_split(word):
+        return BaseAnalyzer.camel_case_pattern.sub(r' \1', word).split()
 
     def _snake_case_splitter(self, keywords: List[Text]) -> Iterator[Tuple[Text]]:
         for word in keywords:
@@ -72,19 +79,20 @@ class BaseAnalyzer:
         trimed = [''.join(pieces[1:]) for pieces in self._snake_case_splitter(keywords)]
         return trimed
 
-    def _plural_to_singular_stem(self, word):
-        def replace(match):
-            if match.group(1):  # Matches (?!e|a)ies
-                return 'y'
-            elif match.group(2):  # Matches
-                # es
-                return ''
-            elif match.group(3):  # Matches (?!s)s
-                return ''
-            return word  # No match (shouldn't happen with this regex)
-
-        pattern = r'((?<!e|a)ies$)|(es$)|((?<!s)s$)'
-        return re.sub(pattern, replace, word)
+    @staticmethod
+    @functools.cache
+    def _plural_to_singular_stem(word):
+        if word.endswith('s'):
+            if word.endswith('ies'):
+                if not (word.endswith('eies') or word.endswith('aies')):
+                    return word[:-3] + 'y'  # Replace 'ies' with 'y'
+            elif word.endswith('es'):
+                if not word.endswith('ses'):
+                    return word[:-2]  # Remove 'es'
+            else:
+                if not word.endswith('ss'):
+                    return word[:-1]  # Remove 's'
+        return word  # No changes for other cases
 
 
 class DefaultAnalyzer(BaseAnalyzer):
