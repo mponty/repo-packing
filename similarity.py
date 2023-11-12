@@ -8,14 +8,31 @@ from sklearn.base import BaseEstimator, TransformerMixin
 
 import numpy as np
 import scipy.sparse as sp
+from numba import jit
 
 
 def _add_sparse_column(sparse, column):
-    addition = sp.lil_matrix(sparse.shape)
+    # Ensure the column is a NumPy array and flatten it
+    column = np.array(column).ravel()
+
+    # Convert the sparse matrix to COO format
     sparse_coo = sparse.tocoo()
-    for i, j, v in zip(sparse_coo.row, sparse_coo.col, sparse_coo.data):
-        addition[i, j] = v + column[i, 0]
-    return addition.tocsr()
+
+    # Call the Numba-compiled function to perform the addition
+    data = _add_values_numba(sparse_coo.row, sparse_coo.data, column)
+
+    # Create a new CSR matrix from the updated data
+    return sp.csr_matrix((data, (sparse_coo.row, sparse_coo.col)), shape=sparse.shape)
+
+
+@jit('float64[:](int32[:], float64[:], float64[:])', nopython=True)
+def _add_values_numba(rows, data, column):
+    new_data = np.empty(data.shape, dtype=np.float64)
+
+    for i in range(len(data)):
+        new_data[i] = data[i] + column[rows[i]]
+
+    return new_data
 
 
 def _document_frequency(X):
@@ -427,14 +444,16 @@ def compute_bm25_similarity(documents: List[Text]) -> np.ndarray:
     freqs = count_vect.fit_transform(documents)
     tfidf = bm25.fit_transform(freqs)
 
+    return _bm25_similarity(tfidf)
+
+
+def _bm25_similarity(tfidf):
     n_samples, n_features = tfidf.shape
-
     similarity_mat = np.zeros((n_samples, n_samples), dtype=np.float32)
-
     rows, cols = tfidf.nonzero()
-
+    # To compressed columns
+    tfidf = sp.csc_matrix(tfidf)
     for query_doc_id in np.unique(rows):
         query_terms = cols[rows == query_doc_id]
         similarity_mat[query_doc_id, :] = tfidf[:, query_terms].sum(axis=1).flatten()
-
     return similarity_mat
