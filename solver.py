@@ -5,11 +5,15 @@ import itertools
 from collections import namedtuple
 from scipy.optimize import linear_sum_assignment
 import scipy.sparse
+from typing import List
 
 DirectedChain = namedtuple('DirectedChain', ['start', 'end', 'nodes'])
 
 
 class TSPSolver:
+    max_iter = 10
+    num_chains_switch = 64
+
     def solve(self, similarity_matrix):
         """
         Solves the problem of organizing files in a repository to enhance the training of autoregressive Language Models
@@ -22,17 +26,32 @@ class TSPSolver:
         Returns:
             List: The nodes in the final chain, representing the Hamiltonian path.
         """
-        self.init_graph(similarity_matrix)
+        assert similarity_matrix.shape[0] == similarity_matrix.shape[1], "similarity_matrix must be a square matrix"
 
-        components = [self.graph.subgraph(nodes).copy() for nodes in
-                      nx.connected_components(self.graph.to_undirected())]
-        self.chains = set([self.component_to_directed_chain(component) for component in components])
+        self.similarity_matrix = similarity_matrix
+        self._cost_matrix = -similarity_matrix + np.diag(np.ones(len(similarity_matrix)) * float('inf'))
 
-        final_chain = self.connect_all_chains()
+        adj_matrix = self.seed_clustering(similarity_matrix)
+
+        chains = self.extract_chains(adj_matrix)
+
+        for _ in range(self.max_iter):
+            if len(chains) <= self.num_chains_switch:
+                break
+            chains = self.chains_merging(chains)
+
+
+        final_chain = self.chains_merging_heap(chains)
 
         return final_chain.nodes
 
-    def init_graph(self, similarity_matrix):
+    def extract_chains(self, adj_matrix) -> List[DirectedChain]:
+        graph = nx.from_scipy_sparse_array(adj_matrix, create_using=nx.DiGraph())
+        components = [graph.subgraph(nodes).copy() for nodes in nx.connected_components(graph.to_undirected())]
+        chains = [self.component_to_directed_chain(component) for component in components]
+        return chains
+
+    def seed_clustering(self, similarity_matrix):
         """
         Initializes the graph from a similarity matrix by creating a cost matrix and
         applying the Jonker-Volgenant algorithm to find the optimal assignment.
@@ -44,15 +63,30 @@ class TSPSolver:
         Raises:
             AssertionError: If the similarity matrix is not square.
         """
-        assert similarity_matrix.shape[0] == similarity_matrix.shape[1], "similarity_matrix must be a square matrix"
 
-        cost = -similarity_matrix + np.diag(np.ones(len(similarity_matrix)) * float('inf'))
-
-        row_ind, col_ind = linear_sum_assignment(cost)
+        row_ind, col_ind = linear_sum_assignment(self._cost_matrix)
         graph = scipy.sparse.csc_matrix((similarity_matrix[row_ind, col_ind], (row_ind, col_ind)))
+        return graph
 
-        self.graph = nx.from_scipy_sparse_array(graph, create_using=nx.DiGraph())
-        self.weights = similarity_matrix
+    def chains_merging(self, chains: List[DirectedChain]) -> List[DirectedChain]:
+        starts = np.array([chain.start for chain in chains])
+        ends = np.array([chain.end for chain in chains])
+
+        for start, end in zip(starts, ends):
+            # forbid self-connection
+            self._cost_matrix[start, end] = float('inf')
+            self._cost_matrix[end, start] = float('inf')
+
+        end_ind, start_ind = linear_sum_assignment(self._cost_matrix[ends, :][:, starts])
+        row_ind, col_ind = list(ends[end_ind]), list(starts[start_ind])  # remap
+
+        for chain in chains:
+            for _from, _to in zip(chain.nodes[:-1], chain.nodes[1:]):
+                row_ind.append(_from)
+                col_ind.append(_to)
+
+        graph = scipy.sparse.csc_matrix((self.similarity_matrix[row_ind, col_ind], (row_ind, col_ind)))
+        return self.extract_chains(graph)
 
     @staticmethod
     def _is_cycle(component):
@@ -109,8 +143,8 @@ class TSPSolver:
 
         for edge in nx.dfs_edges(component.to_undirected(), start):
             traversal.append(edge[1])
-            forward_sum += self.weights[edge[0]][edge[1]]
-            backward_sum += self.weights[edge[1]][edge[0]]
+            forward_sum += self.similarity_matrix[edge[0]][edge[1]]
+            backward_sum += self.similarity_matrix[edge[1]][edge[0]]
 
         start, end, traversal = (start, end, traversal) if forward_sum >= backward_sum else (
             end, start, reversed(traversal))
@@ -126,10 +160,10 @@ class TSPSolver:
             chain1 (DirectedChain): The first chain.
             chain2 (DirectedChain): The second chain.
 
-        Returns:
+    Returns:
             int: The cost of connecting the end of the first chain to the start of the second chain.
         """
-        return -self.weights[chain1.end][chain2.start]
+        return self._cost_matrix[chain1.end][chain2.start]
 
     def initialize_priority_queue(self):
         """
@@ -140,7 +174,7 @@ class TSPSolver:
             list: A priority queue with tuples containing the cost and chain pairs.
         """
         pq = []
-        for chain1, chain2 in itertools.permutations(self.chains, 2):
+        for chain1, chain2 in itertools.permutations(self._chains, 2):
             cost = self._connection_cost(chain1, chain2)
             heapq.heappush(pq, (cost, chain1, chain2))
         return pq
@@ -176,7 +210,7 @@ class TSPSolver:
         Returns:
             list: The updated priority queue.
         """
-        for chain in self.chains:
+        for chain in self._chains:
             if chain != new_chain:
                 pq = self.push_new_pair(pq, new_chain, chain)
         return pq
@@ -195,7 +229,7 @@ class TSPSolver:
         """
         return DirectedChain(chain1.start, chain2.end, nodes=chain1.nodes + chain2.nodes)
 
-    def connect_all_chains(self):
+    def chains_merging_heap(self, chains):
         """
         Connects all chains in the graph to form a single, continuous Hamiltonian path.
         This method iteratively merges chains, using a priority queue to determine the most advantageous mergers.
@@ -203,16 +237,18 @@ class TSPSolver:
         Returns:
             DirectedChain: The final merged chain representing the Hamiltonian path.
         """
+        self._chains = set(chains)
+
         pq = self.initialize_priority_queue()
-        while len(self.chains) > 1:
+        while len(self._chains) > 1:
             _, chain1, chain2 = heapq.heappop(pq)
-            while (chain1 not in self.chains or chain2 not in self.chains) and len(pq) > 0:
+            while (chain1 not in self._chains or chain2 not in self._chains) and len(pq) > 0:
                 _, chain1, chain2 = heapq.heappop(pq)
 
             merged_chain = self.merge_chains(chain1, chain2)
-            self.chains.remove(chain1)
-            self.chains.remove(chain2)
-            self.chains.add(merged_chain)
+            self._chains.remove(chain1)
+            self._chains.remove(chain2)
+            self._chains.add(merged_chain)
 
             pq = self.update_priority_queue(pq, merged_chain)
-        return self.chains.pop()
+        return self._chains.pop()
