@@ -47,13 +47,13 @@ class RepoPacker:
         for file in self.repo_files:
             file['matching_score'] = 0.
 
-    def order_files(self, max_repo_size=2_000):
+    def order_files(self, max_repo_size=10_000):
         """
         Orders the repository files based on their semantic and structural relationships to optimize training data.
 
         Args:
             max_repo_size (int): The maximum size of the repository to process.
-            If exceeds returns a lexicographically ordered files. Defaults to 2000.
+            If exceeds returns a lexicographically ordered files. Defaults to 10000.
 
         Returns:
             List[Dict[str, Text]]: An ordered list of files, each represented as a dictionary.
@@ -65,7 +65,8 @@ class RepoPacker:
             return self.repo_files
 
         try:
-            order = self.solver.solve(self.parse())
+            similarity_matrix = self.parse()
+            order = self.solver.solve(similarity_matrix)
             ordered_files = [self.repo_files[idx] for idx in order]
             for file, i, j in zip(ordered_files, order[:-1], order[1:]):
                 file['matching_score'] = self._similarity_matrix[i, j]
