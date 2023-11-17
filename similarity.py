@@ -82,11 +82,10 @@ class BM25Transformer(BaseEstimator, TransformerMixin):
                    Press, pp. 118-120.`
     """
 
-    def __init__(self, norm='l2', use_idf=True, use_bm25idf=False, smooth_idf=True,
-                 sublinear_tf=False, bm25_tf=False, k1=1.2, b=0.75, epsilon=0.01):
+    def __init__(self, norm='l2', use_idf=True, smooth_idf=False,
+                 sublinear_tf=False, bm25_tf=True, k1=1.2, b=0.75, epsilon=0.01):
         self.norm = norm
         self.use_idf = use_idf
-        self.use_bm25idf = use_bm25idf
         self.smooth_idf = smooth_idf
 
         self.sublinear_tf = sublinear_tf
@@ -118,13 +117,13 @@ class BM25Transformer(BaseEstimator, TransformerMixin):
 
             # log1p instead of log makes sure terms with zero idf don't get
             # suppressed entirely
-            bm25idf = np.log((n_samples - freq + 0.5) / (freq + 0.5))
+            bm25idf = np.log(1 + (n_samples - freq + 0.5) / (freq + 0.5))
 
             # collect terms with negative idf to set them a special epsilon value.
             # idf can be negative if word is contained in more than half of documents
-            avg_idf = np.average(bm25idf[bm25idf > 0])
-            if not np.isnan(avg_idf):
-                bm25idf[bm25idf < 0] = self.epsilon * avg_idf
+            # avg_idf = np.average(bm25idf[bm25idf > 0])
+            # if not np.isnan(avg_idf):
+            #     bm25idf[bm25idf < 0] = self.epsilon * avg_idf
 
             self._idf_diag = sp.spdiags(bm25idf,
                                         diags=0, m=n_features, n=n_features)
@@ -307,8 +306,8 @@ class BM25Vectorizer(CountVectorizer):
                  stop_words=None, token_pattern=r"(?u)\b\w\w+\b",
                  ngram_range=(1, 1), max_df=1.0, min_df=1,
                  max_features=None, vocabulary=None, binary=False,
-                 dtype=np.int64, norm='l2', use_idf=True, use_bm25idf=False,
-                 smooth_idf=True, sublinear_tf=False, bm25_tf=False):
+                 dtype=np.int64, norm='l2', use_idf=True,
+                 smooth_idf=True, sublinear_tf=False, bm25_tf=True):
         super(BM25Vectorizer, self).__init__(
             input=input, encoding=encoding, decode_error=decode_error,
             strip_accents=strip_accents, lowercase=lowercase,
@@ -319,9 +318,7 @@ class BM25Vectorizer(CountVectorizer):
             dtype=dtype)
 
         self.bm25_tf = bm25_tf
-        self.use_bm25idf = use_bm25idf
         self._tfidf = BM25Transformer(norm=norm, use_idf=use_idf,
-                                      use_bm25idf=use_bm25idf,
                                       smooth_idf=smooth_idf,
                                       sublinear_tf=sublinear_tf,
                                       bm25_tf=bm25_tf)
@@ -438,8 +435,9 @@ def compute_bm25_similarity(documents: List[Text]) -> np.ndarray:
       factors like term saturation and document length normalization.
     - This function assumes that the input documents are preprocessed and tokenized as required.
     """
-    count_vect = CountVectorizer(min_df=2, lowercase=False)
-    bm25 = BM25Transformer(use_bm25idf=True, bm25_tf=True)
+    n_docs = len(documents)
+    count_vect = CountVectorizer(min_df=2, max_df=n_docs - 1, lowercase=False)
+    bm25 = BM25Transformer()
 
     freqs = count_vect.fit_transform(documents)
     tfidf = bm25.fit_transform(freqs)
