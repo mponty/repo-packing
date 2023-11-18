@@ -10,7 +10,8 @@ ImportedName = namedtuple('ImportedName', ['name', 'module', 'from_file', 'to_fi
 class PythonImportsAnalyzer:
 
     def __init__(self, python_files, propagation_lvl=3):
-        self.files = {file['path']: file['content'] for file in python_files}
+        pathes = [file['path'] if file['path'].startswith('/') else ('/' + file['path']) for file in python_files]
+        self.files = {path: file['content'] for path, file in zip(pathes, python_files)}
         self._keywords = dict()
         self.propagation_lvl = propagation_lvl
 
