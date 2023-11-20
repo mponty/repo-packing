@@ -90,6 +90,8 @@ class RepoPacker:
         Returns:
             List[Dict[str, Text]]: The pre-sorted list of file dictionaries.
         """
+        for file in files:
+            file['path'] = file['path'] if file['path'].startswith('/') else ('/' + file['path'])
         return list(sorted(files, key=lambda f: f['path']))
 
     def parse(self) -> np.ndarray:
