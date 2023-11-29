@@ -435,8 +435,8 @@ def compute_bm25_similarity(documents: List[Text]) -> np.ndarray:
       factors like term saturation and document length normalization.
     - This function assumes that the input documents are preprocessed and tokenized as required.
     """
-    n_docs = len(documents)
-    count_vect = CountVectorizer(min_df=2, max_df=n_docs - 1, lowercase=False)
+    max_df = max(len(documents) - 1, 3)
+    count_vect = CountVectorizer(min_df=2, max_df=max_df, lowercase=False)
     bm25 = BM25Transformer()
 
     freqs = count_vect.fit_transform(documents)
