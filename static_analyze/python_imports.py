@@ -3,6 +3,9 @@ import re
 from collections import namedtuple, defaultdict
 from pathlib import Path
 from typing import List, Tuple, Dict
+import logging
+
+logging.basicConfig(level=logging.INFO)
 
 ImportedName = namedtuple('ImportedName', ['name', 'module', 'from_file', 'to_file'])
 
@@ -31,7 +34,7 @@ class PythonImportsAnalyzer:
                 weight=1.)
             for from_file, to_file in connections]
 
-    def parse_imports(self, source_code):
+    def parse_imports(self, source_code, filename=''):
         """
         Parses Python source code and extracts all names in import statements.
 
@@ -60,13 +63,20 @@ class PythonImportsAnalyzer:
             extractor.visit(tree)
             imports = extractor.imports
         except Exception as err:
-            # TODO : logger
-            # print(type(err), err)
-            imports = dict()
+            # Attempting to extract from truncated file
+            stump = '\n'.join([line.lstrip() for line in source_code.split('\n') if 'import ' in line])
+            try:
+                tree = ast.parse(stump)
+                extractor = ImportExtractor()
+                extractor.visit(tree)
+                imports = extractor.imports
+            except:
+                logging.warning(f"AST failed to parse {filename} with error: {err}")
+                imports = dict()
 
         return imports
 
-    def resolve_module_path(self, module: str, level: int, current_path: str):
+    def resolve_module_path(self, module: str, level: int, current_path: str) -> str:
         current_dir = Path(current_path).parent
         module = module.replace('.', '/')
         level = max(level - 1, 0)
@@ -93,7 +103,7 @@ class PythonImportsAnalyzer:
         imported_names = []
         for current_path, source_code in self.files.items():
 
-            imports = self.parse_imports(source_code)
+            imports = self.parse_imports(source_code, current_path)
 
             for (module, level), names in imports.items():
                 module_path = self.resolve_module_path(module, level, current_path)
@@ -115,7 +125,8 @@ class PythonImportsAnalyzer:
                 self._keywords[name.from_file] = set(re.findall(term_pattern, content))
 
             if name.name in self._keywords[name.from_file]:
-                filtered.append(name)
+                if name.from_file != name.to_file:
+                    filtered.append(name)
 
         return filtered
 
