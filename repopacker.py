@@ -1,10 +1,15 @@
 from typing import List, Text, Dict
 import numpy as np
+from scipy.sparse import csr_matrix
+import logging
 
 from content_analyze import ContentAnalyzer
 from static_analyze import StaticAnalyzer
 from similarity import compute_bm25_similarity
 from solver import TSPSolver
+from metrics import connection_metrics
+
+logging.basicConfig(level=logging.INFO)
 
 
 class RepoPacker:
@@ -26,7 +31,7 @@ class RepoPacker:
     static_analyzer = StaticAnalyzer()
     solver = TSPSolver()
 
-    def __init__(self, repo_files: List[Dict[str, Text]], connection_boost=1.):
+    def __init__(self, repo_files: List[Dict[str, Text]], repo_name='', connection_boost=1.):
         """
         Initializes the RepoPacker with a list of repository files and an optional connection boost factor.
 
@@ -37,17 +42,21 @@ class RepoPacker:
                 - 'content': Source code of the file.
             connection_boost (float, optional): A factor to boost the connections in the similarity matrix.
         """
-
+        self.repo_name = repo_name
         self.repo_files = tuple(self.presorting(repo_files))
         self.connection_boost = connection_boost
-        self._keywords = None
+        self._keywords = []
+        self._connections = []
         self._similarity_matrix = None
         self._connections_graph = None
+        self._matching_scores = []
 
-        for file in self.repo_files:
-            file['matching_score'] = 0.
-
-    def order_files(self, max_repo_size=10_000):
+    def order_files(self,
+                    max_repo_size=10_000,
+                    output_matching_score=True,
+                    output_connections=False,
+                    output_connections_score=False
+                    ):
         """
         Orders the repository files based on their semantic and structural relationships to optimize training data.
 
@@ -61,23 +70,35 @@ class RepoPacker:
         Note:
             If an exception occurs during processing, returns lexicographically ordered files.
         """
-        if len(self.repo_files) < 2 or len(self.repo_files) > max_repo_size:
-            return self.repo_files
+        matching_scores = [None] * len(self.repo_files)
+        coherence_score = None
+        ordered_files = self.repo_files
 
-        try:
-            similarity_matrix = self.parse()
-            order = self.solver.solve(similarity_matrix)
-            ordered_files = [self.repo_files[idx] for idx in order]
-            for file, i, j in zip(ordered_files, order[:-1], order[1:]):
-                file['matching_score'] = self._similarity_matrix[i, j]
+        if 1 < len(self.repo_files) <= max_repo_size:
+            try:
+                similarity_matrix = self.parse()
+                if similarity_matrix is not None:
+                    order = self.solver.solve(similarity_matrix)
+                    ordered_files = [self.repo_files[idx] for idx in order]
 
-            # Last file gets score for backward connection
-            ordered_files[-1]['matching_score'] = self._similarity_matrix[order[-1], order[-2]]
-        except Exception as err:
-            # TODO : logger
-            # print(type(err), err)
-            ordered_files = self.repo_files
-        return ordered_files
+                    if self._similarity_matrix is not None:
+                        matching_scores = [self._similarity_matrix[i, j]
+                                           for file, i, j in zip(ordered_files, order[:-1], order[1:])]
+                        # Last file gets score for backward connection
+                        matching_scores.append(self._similarity_matrix[order[-1], order[-2]])
+                        coherence_score = np.median(matching_scores)
+            except Exception as err:
+                logging.error(f"Error in ordering files while parsing {self.repo_name} : {err}")
+
+        output = dict(files=ordered_files)
+        if output_matching_score:
+            output['matching_scores'] = matching_scores
+        if output_connections:
+            output['connections'] = self._connections
+        if output_connections_score:
+            output['coherence_score'] = coherence_score
+            output.update(connection_metrics(ordered_files, self._connections))
+        return output
 
     @staticmethod
     def presorting(files):
@@ -101,12 +122,34 @@ class RepoPacker:
         Returns:
             np.ndarray: A similarity matrix representing the relationships between files.
         """
-        self._keywords = [self.content_analyzer.analyze(file['content'], file['language']) for file in self.repo_files]
-        self._connections_graph = self.static_analyzer.analyze_connections(self.repo_files)
+        similarity_matrix = self.compute_similarity(self.repo_files)
+        connections_graph = self.prepare_connections_graph(self.repo_files)
+        return self.prepare_similarity_matrix(similarity_matrix, connections_graph)
 
-        return self.prepare_similarity_matrix(self._keywords, self._connections_graph)
+    def prepare_connections_graph(self, files):
+        try:
+            self._connections = self.static_analyzer.analyze_connections(files)
+            augmented_connections = self.static_analyzer.augment_connections(self._connections)
+            self._connections_graph = self.static_analyzer.make_connection_graph(augmented_connections, files)
+            return self._connections_graph
+        except Exception as err:
+            logging.warning(f"Connection analysis failed while parsing {self.repo_name} with error: {err}")
+            return None
 
-    def prepare_similarity_matrix(self, documents, connections_graph=None):
+    def compute_similarity(self, files):
+        try:
+            if len(files) == 2:
+                # Skip content analysis for repository of size == 2
+                return np.array([[1., 1.], [1., 1.]])
+            else:
+                self._keywords = [self.content_analyzer.analyze(file) for file in files]
+                self._similarity_matrix = compute_bm25_similarity(self._keywords)
+                return self._similarity_matrix
+        except Exception as err:
+            logging.warning(f"Similarity analysis failed while parsing {self.repo_name} with error: {err}")
+            return None
+
+    def prepare_similarity_matrix(self, similarity_matrix=None, connections_graph=None):
         """
         Prepares the BM25 similarity matrix and applies connection boosts if a connections graph is provided.
 
@@ -117,12 +160,18 @@ class RepoPacker:
         Returns:
             np.ndarray: The adjusted similarity matrix.
         """
-        self._similarity_matrix = similarity_matrix = compute_bm25_similarity(documents)
-        if connections_graph is not None:
-            similarity_matrix = self.boost_connections(similarity_matrix, connections_graph)
+        if similarity_matrix is None and connections_graph is None:
+            return None
+
+        if similarity_matrix is not None:
+            if connections_graph is not None:
+                similarity_matrix = self.boost_connections(similarity_matrix, connections_graph)
+        else:
+            similarity_matrix = connections_graph.toarray()
 
         # Set diagonal to zero
         similarity_matrix = similarity_matrix - np.diag(np.diag(similarity_matrix))
+
         return similarity_matrix
 
     def boost_connections(self, similarity_matrix, connections_graph) -> np.ndarray:
@@ -136,6 +185,8 @@ class RepoPacker:
         Returns:
             np.ndarray: The boosted similarity matrix.
         """
-        max_value = similarity_matrix.max()
-        similarity_matrix = similarity_matrix + self.connection_boost * max_value * connections_graph.toarray()
+        stable_max_value = max(0.01, similarity_matrix.max() \
+            if len(similarity_matrix) < 10 else np.percentile(similarity_matrix, 95))
+
+        similarity_matrix = similarity_matrix + self.connection_boost * stable_max_value * connections_graph.toarray()
         return similarity_matrix

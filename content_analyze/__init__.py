@@ -1,4 +1,4 @@
-from typing import List, Text
+from typing import Any, Dict
 from .analyzers import *
 
 __all__ = ['ContentAnalyzer']
@@ -23,6 +23,7 @@ class ContentAnalyzer:
         'Text': TextAnalyzer(),
     }
 
-    def analyze(self, content: Text, language='default') -> Text:
+    def analyze(self, file: Dict[str, Any]) -> Text:
+        content, path, language = file['content'], file['path'], file['language']
         analyzer = self.analyzers.get(language, self.default_analyzer)
-        return analyzer.analyze(content)
+        return analyzer.analyze(path + '\n' + content)
